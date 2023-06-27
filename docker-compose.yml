@@ -1,0 +1,53 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:14
+    container_name: tms_backend_db_postgres
+    volumes:
+      - ./volumes/db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tms_backend
+    ports:
+      - "5431:5432"
+  redis:
+    image: redis:6.2.5
+    container_name: tms_backend_redis
+    ports:
+      - "6379:6379"
+  rabbit-mq:
+    image: rabbitmq:3.12.0-management
+    container_name: tms_backend_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq
+      RABBITMQ_DEFAULT_PASS: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+  object-storage:
+    image: quay.io/minio/minio:RELEASE.2023-06-19T19-52-50Z
+    container_name: tms_backend_object_storage
+    environment:
+      MINIO_ROOT_USER: rootuser
+      MINIO_ROOT_PASSWORD: changeme123
+    user:
+      root
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command:  server /data --console-address ":9001" 
+    volumes:
+      - ./volumes/object_storage_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  adminer:
+    image: adminer:4.8.1
+    container_name: tms_backend_adminer
+    ports:
+      - "1000:8080"
+    depends_on:
+      - db
