@@ -1,64 +1,109 @@
-version: "3.8"
+version: '3.8'
 services:
   db:
-    image: postgres:14
-    container_name: tms_backend_db_postgres
-    volumes:
-      - ./volumes/db_data:/var/lib/postgresql/data
+    image: postgres:15.4
+    restart: always
     environment:
-      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tms_backend
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
     ports:
-      - "5431:5432"
-  redis:
-    image: redis:6.2.5
-    container_name: tms_backend_redis
+      - 5432:5432
+    volumes:
+      - ./volume/postgres-data:/var/lib/postgresql/data
+  cache:
+    image: redis:6.2
+    restart: always
     ports:
-      - "6379:6379"
-  rabbit-mq:
-    image: rabbitmq:3.12.0-management
-    container_name: tms_backend_rabbitmq
+      - 6379:6379
+    volumes:
+      - ./volume/redis-data:/data
+  message-broker:
+    image: rabbitmq:3.9
+    restart: always
     environment:
       RABBITMQ_DEFAULT_USER: rabbitmq
       RABBITMQ_DEFAULT_PASS: rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./volume/rabbitmq-data:/var/lib/rabbitmq
   object-storage:
-    image: quay.io/minio/minio:RELEASE.2023-06-19T19-52-50Z
-    container_name: tms_backend_object_storage
-    environment:
-      MINIO_ROOT_USER: rootuser
-      MINIO_ROOT_PASSWORD: changeme123
-    user:
-      root
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    command:  server /data --console-address ":9001" 
-    volumes:
-      - ./volumes/object_storage_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-  adminer:
-    image: adminer:4.8.1
-    container_name: tms_backend_adminer
-    ports:
-      - "1000:8080"
-    depends_on:
-      - db
-  consul-server:
-    image: hashicorp/consul:1.10.0
-    container_name: consul-server
+    image: minio/minio:latest
     restart: always
-    volumes:
-     - ./server.json:/consul/config/server.json:ro
     ports:
-      - "8500:8500"
-      - "8600:8600/tcp"
-      - "8600:8600/udp"
-    command: "agent"
+      - 9000:9000
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    volumes:
+      - ./volume/minio-data:/data
+
+  ## Log and trancing
+  filebeat:
+    labels:
+      co.elastic.logs/enabled: false
+    user: root
+    image: docker.elastic.co/beats/filebeat:7.14.0
+    command: filebeat -e -strict.perms=false
+    volumes:
+      - ./filebeat.docker.yml:/usr/share/filebeat/filebeat.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  elasticsearch:
+    labels:
+      co.elastic.logs/enabled: false
+    environment:
+      - discovery.type=single-node
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    healthcheck:
+      test: ['CMD', 'curl', '-s', '-f', 'http://localhost:9200/_cat/health']
+      interval: 3s
+      timeout: 3s
+      retries: 80
+    ports:
+      - 9200:9200
+
+  kibana:
+    labels:
+      co.elastic.logs/enabled: false
+    image: docker.elastic.co/kibana/kibana:7.14.0
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-s', '-f', 'http://localhost:5601/api/status']
+      interval: 3s
+      timeout: 3s
+      retries: 80
+    ports:
+      - 5601:5601
+
+  tracing-telemetry:
+    image: jaegertracing/all-in-one:latest
+    restart: always
+    ports:
+      - 16686:16686
+      - 6831:6831/udp
+      - 6832:6832/udp
+      - 5778:5778
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+
+  ## config management
+  config-management:
+    image: hashicorp/vault:latest
+    restart: always
+    ports:
+      - 8200:8200
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: myroot
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:1234
+      VAULT_LOCAL_CONFIG: '{"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true}'
+
+    volumes:
+      - ./volume/vault-data:/vault/file
+## postgress dsn
+# postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
