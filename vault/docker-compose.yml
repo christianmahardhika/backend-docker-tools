@@ -1,0 +1,27 @@
+version: '3.7'
+services:
+  mcba-vault:
+    container_name: mcba-vault
+    image: vault:1.13.3
+    restart: unless-stopped
+    volumes:
+      - ./vault.hcl:/etc/vault.hcl
+    links:
+      - 'mcba-mysql:mcba-mysql'
+    ports:
+      - 8200:8200
+    command: 'server -config=/etc/vault.hcl'
+
+  mcba-mysql:
+    container_name: mcba-mysql
+    image: mysql:5.7
+    ports:
+      - 3306:3306
+    volumes:
+      - ./mysql-data:/var/lib/mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'true'
+      MYSQL_ROOT_PASS: secret
+      MYSQL_USER: foo
+      MYSQL_PASSWORD: bar
+      MYSQL_DATABASE: vault
