@@ -36,68 +36,68 @@ services:
       - 15672:15672
     volumes:
       - ./volume/rabbitmq-data:/var/lib/rabbitmq
-  object-storage:
-    image: minio/minio:latest
-    restart: always
-    ports:
-      - 9000:9000
-    environment:
-      MINIO_ACCESS_KEY: minio
-      MINIO_SECRET_KEY: minio123
-    volumes:
-      - ./volume/minio-data:/data
+  # object-storage:
+  #   image: minio/minio:latest
+  #   restart: always
+  #   ports:
+  #     - 9000:9000
+  #   environment:
+  #     MINIO_ACCESS_KEY: minio
+  #     MINIO_SECRET_KEY: minio123
+  #   volumes:
+  #     - ./volume/minio-data:/data
 
-  ## Log and trancing
-  filebeat:
-    labels:
-      co.elastic.logs/enabled: false
-    user: root
-    image: docker.elastic.co/beats/filebeat:7.14.0
-    command: filebeat -e -strict.perms=false
-    volumes:
-      - ./filebeat.docker.yml:/usr/share/filebeat/filebeat.yml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+  # ## Log and trancing
+  # filebeat:
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   user: root
+  #   image: docker.elastic.co/beats/filebeat:7.14.0
+  #   command: filebeat -e -strict.perms=false
+  #   volumes:
+  #     - ./filebeat.docker.yml:/usr/share/filebeat/filebeat.yml
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  elasticsearch:
-    labels:
-      co.elastic.logs/enabled: false
-    environment:
-      - discovery.type=single-node
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
-    healthcheck:
-      test: ['CMD', 'curl', '-s', '-f', 'http://localhost:9200/_cat/health']
-      interval: 3s
-      timeout: 3s
-      retries: 80
-    ports:
-      - 9200:9200
+  # elasticsearch:
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   environment:
+  #     - discovery.type=single-node
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+  #   healthcheck:
+  #     test: ['CMD', 'curl', '-s', '-f', 'http://localhost:9200/_cat/health']
+  #     interval: 3s
+  #     timeout: 3s
+  #     retries: 80
+  #   ports:
+  #     - 9200:9200
 
-  kibana:
-    labels:
-      co.elastic.logs/enabled: false
-    image: docker.elastic.co/kibana/kibana:7.14.0
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-s', '-f', 'http://localhost:5601/api/status']
-      interval: 3s
-      timeout: 3s
-      retries: 80
-    ports:
-      - 5601:5601
+  # kibana:
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   image: docker.elastic.co/kibana/kibana:7.14.0
+  #   depends_on:
+  #     elasticsearch:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ['CMD', 'curl', '-s', '-f', 'http://localhost:5601/api/status']
+  #     interval: 3s
+  #     timeout: 3s
+  #     retries: 80
+  #   ports:
+  #     - 5601:5601
 
-  tracing-telemetry:
-    image: jaegertracing/all-in-one:latest
-    restart: always
-    ports:
-      - 16686:16686
-      - 6831:6831/udp
-      - 6832:6832/udp
-      - 5778:5778
-    environment:
-      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+  # tracing-telemetry:
+  #   image: jaegertracing/all-in-one:latest
+  #   restart: always
+  #   ports:
+  #     - 16686:16686
+  #     - 6831:6831/udp
+  #     - 6832:6832/udp
+  #     - 5778:5778
+  #   environment:
+  #     COLLECTOR_ZIPKIN_HTTP_PORT: 9411
 
   docker-monitor:
     image: portainer/portainer:latest
@@ -108,18 +108,31 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./volume/portainer-data:/data
 
-  ## config management
-  config-management:
-    image: hashicorp/vault:latest
-    restart: always
-    ports:
-      - 8200:8200
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: myroot
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:1234
-      VAULT_LOCAL_CONFIG: '{"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true}'
-
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    command: ['--config=/etc/otel-collector.yaml']
     volumes:
-      - ./volume/vault-data:/vault/file
+      - ./otel-collector.yaml:/etc/otel-collector.yaml
+    ports:
+      - 4317:4317
+  
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - 16686:16686
+
+  # ## config management
+  # config-management:
+  #   image: hashicorp/vault:latest
+  #   restart: always
+  #   ports:
+  #     - 8200:8200
+  #   environment:
+  #     VAULT_DEV_ROOT_TOKEN_ID: myroot
+  #     VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:1234
+  #     VAULT_LOCAL_CONFIG: '{"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true}'
+
+  #   volumes:
+  #     - ./volume/vault-data:/vault/file
 ## postgress dsn
 # postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
