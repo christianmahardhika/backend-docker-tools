@@ -26,7 +26,7 @@ services:
     volumes:
       - ./volume/redis-data:/data
   message-broker:
-    image: rabbitmq:3.9
+    image: rabbitmq:3.13.3-management
     restart: always
     environment:
       RABBITMQ_DEFAULT_USER: rabbitmq
@@ -115,7 +115,8 @@ services:
       - ./otel-collector.yaml:/etc/otel-collector.yaml
     ports:
       - 4317:4317
-  
+      - 9091:9090
+
   prometheus:
     image: prom/prometheus:v2.52.0
     volumes:
@@ -123,7 +124,6 @@ services:
     ports:
       - 9090:9090
 
-  
   jaeger:
     image: jaegertracing/all-in-one:1.57
     ports:
