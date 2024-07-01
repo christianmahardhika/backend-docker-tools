@@ -29,13 +29,13 @@ func main() {
 		panic(err)
 	}
 
-	err = declareExchangeAndQueue(ch, dlxExchangeName, dlxQueueName)
+	err = declareExchangeAndQueue(ch, dlxExchangeName, dlxQueueName, true)
 	if err != nil {
 		panic(err)
 	}
 
 	// Publish message
-	sendMsg(ch, exchangeName, "Hello World")
+	sendMsg(ch, exchangeName, "Hello World", 2000)
 
 	// // Consume message
 	// msgs, err := consumeMsg(ch, queueName)
@@ -72,14 +72,17 @@ func initConnection() (*amqp.Connection, error) {
 	return conn, nil
 }
 
-func sendMsg(ch *amqp.Channel, exchangeName string, body interface{}) error {
+func sendMsg(ch *amqp.Channel, exchangeName string, body interface{}, delay int) error {
 	jsPayload, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
+	header := make(amqp.Table)
+	header["x-delay"] = delay
 	err = ch.Publish(exchangeName, "", false, false, amqp.Publishing{
 		ContentType: "text/plain",
 		Body:        []byte(jsPayload),
+		Headers:     header,
 	})
 	if err != nil {
 		return err
@@ -121,8 +124,12 @@ func declareExchangeAndQueueWithDlx(ch *amqp.Channel, exchangeName string, dlxEx
 	return nil
 }
 
-func declareExchangeAndQueue(ch *amqp.Channel, exchangeName string, queueName string) error {
+func declareExchangeAndQueue(ch *amqp.Channel, exchangeName string, queueName string, isDelayedExchange bool) error {
 	// Declare an exchange
+	if isDelayedExchange {
+		argsEx := make(amqp.Table)
+		argsEx["x-delayed-type"] = "direct"
+	}
 	err := ch.ExchangeDeclare(exchangeName, amqp.ExchangeTopic, true, false, false, false, nil)
 	if err != nil {
 		return err
