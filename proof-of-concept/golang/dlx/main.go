@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -35,29 +36,34 @@ func main() {
 	}
 
 	// Publish message
-	sendMsg(ch, exchangeName, "Hello World", 2000)
+	sendMsg(ch, exchangeName, "Hello World", 10000)
 
-	// // Consume message
-	// msgs, err := consumeMsg(ch, queueName)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// for d := range msgs {
-	// 	println("this is normal queue ", string(d.Body))
-	// 	d.Nack(false, false)
-	// }
+	// Consume message
+	msgs, err := consumeMsg(ch, queueName)
+	if err != nil {
+		panic(err)
+	}
+	go func() {
+		for d := range msgs {
+			println("this is normal queue ", string(d.Body))
+			d.Nack(false, false)
+		}
+	}()
 
 	// check dlx queue
-	msgs, err := consumeMsg(ch, dlxQueueName)
+	msgsQ, err := consumeMsg(ch, dlxQueueName)
 	if err != nil {
 		panic(err)
 	}
 
-	for d := range msgs {
+	// go func() {
+	for d := range msgsQ {
 		println("this is dlx queue", string(d.Body))
-		// d.Nack(false, false)
+		d.Nack(true, true)
+		time.Sleep(2 * time.Second)
+		// d.Ack(true)
 	}
+	// }()
 
 }
 
@@ -102,7 +108,9 @@ func consumeMsg(ch *amqp.Channel, queueName string) (<-chan amqp.Delivery, error
 
 func declareExchangeAndQueueWithDlx(ch *amqp.Channel, exchangeName string, dlxExchangeName string, queueName string) error {
 	// Declare an exchange
-	err := ch.ExchangeDeclare(exchangeName, amqp.ExchangeTopic, true, false, false, false, nil)
+	argsEx := make(amqp.Table)
+	// argsEx["x-delayed-type"] = "direct"
+	err := ch.ExchangeDeclare(exchangeName, amqp.ExchangeTopic, true, false, false, false, argsEx)
 	if err != nil {
 		return err
 	}
@@ -126,11 +134,11 @@ func declareExchangeAndQueueWithDlx(ch *amqp.Channel, exchangeName string, dlxEx
 
 func declareExchangeAndQueue(ch *amqp.Channel, exchangeName string, queueName string, isDelayedExchange bool) error {
 	// Declare an exchange
-	if isDelayedExchange {
-		argsEx := make(amqp.Table)
-		argsEx["x-delayed-type"] = "direct"
-	}
-	err := ch.ExchangeDeclare(exchangeName, amqp.ExchangeTopic, true, false, false, false, nil)
+	argsEx := make(amqp.Table)
+	// if isDelayedExchange {
+	// 	argsEx["x-delayed-type"] = "direct"
+	// }
+	err := ch.ExchangeDeclare(exchangeName, amqp.ExchangeTopic, true, false, false, false, argsEx)
 	if err != nil {
 		return err
 	}

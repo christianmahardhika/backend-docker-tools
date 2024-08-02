@@ -1,0 +1,60 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: mysql
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+    ports:
+      - 3306:3306
+    volumes:
+      - ./volume/mysql-data:/var/lib/mysql
+
+  cache:
+    image: redis:6.2
+    restart: always
+    ports:
+      - 6379:6379
+    volumes:
+      - ./volume/redis-data:/data
+  message-broker:
+    # build:
+    #   context: ./rabbitmq
+    #   dockerfile: Dockerfile
+    image: rabbitmq:3.13.3-management
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq
+      RABBITMQ_DEFAULT_PASS: rabbitmq
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./volume/rabbitmq-data:/var/lib/rabbitmq
+
+  ## Monitoring Part
+  asynq-monitor:
+    image: hibiken/asynqmon:latest
+    restart: always
+    ports:
+      - 8081:8080
+    environment:
+      REDIS_URL: redis://cache:6379/0
+
+  db-client:
+    image: adminer:latest
+    restart: always
+    ports:
+      - 8080:8080
+
+  docker-monitor:
+    image: portainer/portainer:latest
+    restart: always
+    ports:
+      - 9001:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./volume/portainer-data:/data
