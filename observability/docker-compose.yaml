@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
   # Loki for logs
   loki:
@@ -12,7 +12,10 @@ services:
     image: grafana/tempo:latest
     ports:
       - '3200:3200' # Tempo UI
-      - '4317:4317' # OTLP gRPC
+    expose:
+      - '4318'
+      - '4317'
+
     command: -config.file=/etc/tempo/tempo-local.yaml
     volumes:
       - ./tempo-config.yaml:/etc/tempo/tempo-local.yaml
@@ -40,10 +43,15 @@ services:
   alloy:
     image: grafana/alloy:latest
     ports:
-      - '14317:4317' # OTLP gRPC
+      - '12345:12345'
+      - '4317:4317' # OTLP gRPC
       - '4318:4318' # OTLP HTTP
+    command: >
+      run --server.http.listen-addr=0.0.0.0:12345 
+      --storage.path=/var/lib/alloy/data 
+      /etc/alloy/config.alloy
     volumes:
-      - ./alloy-config.river:/etc/alloy/config.river
+      - ./alloy-config.alloy:/etc/alloy/config.alloy
   docker-monitor:
     image: portainer/portainer:latest
     restart: always
