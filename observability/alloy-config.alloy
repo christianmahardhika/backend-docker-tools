@@ -40,5 +40,8 @@ otelcol.exporter.loki "default" {
 otelcol.exporter.otlp "tempo" {
   client {
     endpoint = "http://observability-tempo-1:4317"
+    tls {
+			insecure = true
+		}
   }
 }

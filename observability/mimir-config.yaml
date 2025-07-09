@@ -3,10 +3,14 @@ multitenancy_enabled: false
 server:
   http_listen_port: 9009
 
+ingester:
+  ring:
+    replication_factor: 1 # not recomended in production
+
 blocks_storage:
   backend: s3
   s3:
-    endpoint: observability-minio-1:9000
+    endpoint: minio:9000
     bucket_name: mimir-blocks
     access_key_id: mimir
     secret_access_key: supersecret
@@ -19,7 +23,7 @@ ruler:
 ruler_storage:
   backend: s3
   s3:
-    endpoint: observability-minio-1:9000
+    endpoint: minio:9000
     bucket_name: mimir-ruler
     access_key_id: mimir
     secret_access_key: supersecret
